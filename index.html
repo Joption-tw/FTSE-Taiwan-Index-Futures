@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>歐大選擇權教室 - 富台指與台指期換算</title>
+    <title>富台指轉換器-歐大選擇權教室</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -105,9 +105,12 @@
     <!-- 頂部導航 -->
     <header class="sticky top-0 z-50 glass-card md:rounded-2xl mt-0 md:mt-2 mb-4 px-4 py-3 md:px-6 flex justify-between items-center border-x-0 md:border-x">
         <div class="flex flex-col">
-            <h1 class="text-lg md:text-2xl font-black text-slate-800 tracking-tight leading-none">
-                歐大選擇權教室<span class="text-amber-500 font-normal">.</span>
-            </h1>
+            <div class="flex items-baseline gap-2">
+                <h1 class="text-lg md:text-2xl font-black text-slate-800 tracking-tight leading-none">
+                    富台指轉換器<span class="text-amber-500 font-normal">-</span>歐大選擇權教室
+                </h1>
+                <span class="text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded font-mono font-bold">v2.9.3</span>
+            </div>
             <p class="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">FTSE Taiwan Index Converter</p>
         </div>
         
@@ -194,8 +197,9 @@
                     <div id="diff-percent" class="text-xs md:text-sm font-bold text-slate-400">
                         (0.00%)
                     </div>
-                    <div class="ml-auto text-[10px] font-black text-slate-300 uppercase italic">
-                        Vs <span id="base-label-short">--/--</span>
+                    <!-- 修改部分：Vs 2/26 改成 與 2/26 收盤價比較 -->
+                    <div class="ml-auto text-[10px] font-bold text-slate-300 uppercase italic">
+                        與 <span id="base-label-short" class="font-black">--/--</span> 收盤價比較
                     </div>
                 </div>
             </div>
