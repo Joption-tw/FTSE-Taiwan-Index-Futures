@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>歐大選擇權教室 - 富台指與台指期換算</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, collection, onSnapshot, increment, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // 使用提供的 Firebase 配置
+        const firebaseConfig = {
+            apiKey: "AIzaSyBbmE0-4WIagYgJ-QIT-3vWXgOo3cu6XaE",
+            authDomain: "ftse-taiwan-index-futures.firebaseapp.com",
+            projectId: "ftse-taiwan-index-futures",
+            storageBucket: "ftse-taiwan-index-futures.firebasestorage.app",
+            messagingSenderId: "773347655083",
+            appId: "1:773347655083:web:d703fced4b5dd2bbd9e6ee",
+            measurementId: "G-QF3GTM38N7"
+        };
+
+        try {
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
+            // 確保 appId 穩定，用於 Firestore 路徑
+            const appId = "joption-academy-v1"; 
+
+            window.firebaseTools = { 
+                db, auth, appId, increment, doc, setDoc, getDoc, collection, onSnapshot, 
+                signInAnonymously, signInWithCustomToken, onAuthStateChanged 
+            };
+        } catch (e) {
+            console.error("Firebase Init Error:", e);
+        }
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+        body { 
+            font-family: 'Noto Sans TC', sans-serif; 
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            color: #1e293b;
+            min-height: 100vh;
+        }
+        .app-window {
+            width: 100%;
+            max-width: 1200px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0; 
+            border-radius: 1.5rem;
+            box-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.05);
+            margin: auto;
+        }
+        .price-glow { text-shadow: 0 0 20px rgba(245, 158, 11, 0.15); }
+        .up-trend { color: #ef4444; } 
+        .down-trend { color: #10b981; } 
+        .watermark {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.02;
+            font-weight: 900;
+            font-style: italic;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .stat-capsule-green {
+            background-color: #f0fdf4;
+            border: 1px solid #dcfce7;
+            border-radius: 9999px;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #166534;
+            font-weight: 700;
+        }
+        .stat-capsule-orange {
+            background-color: #fffbeb;
+            border: 1px solid #fef3c7;
+            border-radius: 9999px;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #92400e;
+            font-weight: 700;
+        }
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            cursor: pointer;
+            filter: invert(0.5);
+        }
+    </style>
+</head>
+<body class="p-2 md:p-6 flex flex-col">
+
+<div class="app-window overflow-hidden flex flex-col min-h-[90vh]">
+    <!-- 標題欄 -->
+    <nav class="border-b border-slate-100 bg-white/80 backdrop-blur-md px-6 py-4 flex justify-between items-center">
+        <div class="flex items-baseline gap-2">
+            <h1 class="text-xl md:text-2xl font-black tracking-tight text-slate-800 uppercase">
+                歐大選擇權教室<span class="text-slate-400 mx-1">_</span>富台指換算器
+            </h1>
+            <span class="text-[16px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-mono">v2.9.3</span>
+        </div>
+        <div class="flex items-center gap-3">
+            <button onclick="toggleSettings()" class="p-2 hover:bg-slate-100 rounded-full transition-colors" title="設定基準">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-500"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+            <div class="flex items-center gap-3 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
+                <span id="sync-dot" class="w-2 h-2 rounded-full bg-slate-300"></span>
+                <span class="text-[16px] font-bold text-slate-500 uppercase">
+                    同步: <span id="countdown" class="text-amber-600 font-mono">15</span>秒
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 基準設定面板 -->
+    <div id="settings-panel" class="hidden bg-slate-100/50 border-b border-slate-200 p-6">
+        <div class="max-w-4xl mx-auto">
+            <h3 class="text-[18px] font-black text-slate-700 mb-4 flex items-center gap-2">
+                ⚙️ 基準數據設定 (手動模擬)
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-[16px] font-bold text-slate-500 mb-1">基準台指期 (TX)</label>
+                    <input type="number" id="input-base-tx" class="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-[16px] focus:outline-none focus:ring-2 focus:ring-amber-500" placeholder="例如: 35086">
+                </div>
+                <div>
+                    <label class="block text-[16px] font-bold text-slate-500 mb-1">基準富台指 (FT)</label>
+                    <input type="number" id="input-base-ft" class="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-[16px] focus:outline-none focus:ring-2 focus:ring-amber-500" placeholder="例如: 2836">
+                </div>
+                <div>
+                    <label class="block text-[16px] font-bold text-slate-500 mb-1">基準日期點選</label>
+                    <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2">
+                        <input type="date" id="input-base-date" class="bg-transparent focus:outline-none text-[16px] flex-grow">
+                        <span class="text-slate-400 font-bold whitespace-nowrap text-[16px]">04:59 封關</span>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 flex justify-end gap-3">
+                <button onclick="toggleSettings()" class="px-6 py-2 text-slate-500 font-bold hover:bg-slate-200 rounded-lg transition-colors text-[16px]">取消</button>
+                <button onclick="saveSettings()" class="px-6 py-2 bg-slate-800 text-white font-bold rounded-lg hover:bg-black transition-all shadow-md text-[16px]">儲存並同步雲端</button>
+            </div>
+        </div>
+    </div>
+
+    <main class="p-4 md:p-8 flex-grow space-y-4 relative">
+        <div class="watermark text-6xl md:text-[14rem]">J-OPTION</div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
+            <!-- 富台指數據 -->
+            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="px-2 py-0.5 bg-slate-800 text-white text-[16px] font-bold rounded">F3 精確鎖定</span>
+                    <label class="text-[16px] font-bold text-slate-400 uppercase tracking-widest">目前富台指最新價</label>
+                </div>
+                <div id="futai-val" class="text-5xl md:text-7xl font-mono font-black text-slate-900">
+                    <span class="animate-pulse text-slate-200">...</span>
+                </div>
+                <div class="mt-4 text-[16px] text-slate-400">
+                    最後更新：<span id="last-update-time" class="font-mono text-slate-600">-</span>
+                </div>
+            </div>
+
+            <!-- 台指期預估 (模擬) -->
+            <div class="bg-white p-6 rounded-2xl border-2 border-amber-100 shadow-md relative overflow-hidden">
+                <div class="absolute top-0 right-0 p-2">
+                    <span class="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-amber-400 opacity-20"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-400"></span>
+                </div>
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="px-2 py-0.5 bg-amber-500 text-white text-[16px] font-bold rounded">模擬換算</span>
+                    <label class="text-[16px] font-bold text-amber-600 uppercase tracking-widest">預估台指期</label>
+                </div>
+                <div id="tx-val" class="text-6xl md:text-8xl font-mono font-black text-amber-500 price-glow leading-none">
+                    ---
+                </div>
+                
+                <div id="diff-container" class="mt-6 flex flex-col hidden border-t border-slate-50 pt-4">
+                    <div id="base-display-label" class="text-[16px] font-bold text-slate-400 mb-1 uppercase italic">
+                        較 --/-- --:-- 基準 (-----)
+                    </div>
+                    <div id="diff-display" class="flex items-center gap-2 font-mono font-black text-2xl">
+                        <span id="diff-arrow"></span>
+                        <span id="diff-points">0</span>
+                        <span id="diff-percent" class="text-[16px] font-bold opacity-60">(0.00%)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 推薦連結 -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
+            <a href="http://learn.joption.com.tw/" target="_blank" 
+               class="flex items-center justify-between p-4 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all group">
+                <div>
+                    <div class="text-[16px] font-bold text-emerald-200 mb-1">推薦連結</div>
+                    <div class="text-[16px] font-black">歐大選擇權教室</div>
+                </div>
+                <span class="text-xl group-hover:translate-x-1 transition-transform">→</span>
+            </a>
+            <a href="https://line.me/ti/g2/LqMZMyJ1RZSCoIGXdKOE8EWQDoybMtmzAk3D8A" target="_blank" 
+               class="flex items-center justify-between p-4 bg-slate-900 text-white rounded-xl hover:bg-black transition-all group">
+                <div>
+                    <div class="text-[16px] font-bold text-amber-500 mb-1">社群討論</div>
+                    <div class="text-[16px] font-black">歐伯供選擇權大小事</div>
+                </div>
+                <span class="text-xl group-hover:translate-x-1 transition-transform">→</span>
+            </a>
+            <a href="https://www.joption.com.tw/" target="_blank" 
+               class="flex items-center justify-between p-4 bg-amber-500 text-slate-900 rounded-xl hover:bg-amber-400 transition-all group">
+                <div>
+                    <div class="text-[16px] font-bold text-slate-800 mb-1">高效工具</div>
+                    <div class="text-[16px] font-black">選擇權雙賣平衡下單機</div>
+                </div>
+                <span class="text-xl group-hover:translate-x-1 transition-transform">→</span>
+            </a>
+        </div>
+    </main>
+
+    <!-- 頁尾統計區域 -->
+    <footer class="p-6 bg-slate-50 border-t border-slate-100 flex flex-col items-center gap-6">
+        <div class="flex flex-wrap justify-center gap-4">
+            <!-- 累積人數 -->
+            <div class="stat-capsule-green">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <span>累積：<span id="total-views" class="font-mono">...</span></span>
+            </div>
+            <!-- 今日人次 -->
+            <div class="stat-capsule-orange">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span>今日：<span id="today-views" class="font-mono">...</span></span>
+            </div>
+            <!-- 在線人數 -->
+            <div class="flex items-center gap-2 px-4 py-2 text-[16px] font-bold text-slate-400">
+                <span class="relative flex h-3 w-3">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                </span>
+                <span>在線：<span id="online-users" class="text-slate-600 font-mono">1</span></span>
+            </div>
+        </div>
+        
+        <div class="text-[16px] font-bold text-slate-300 tracking-widest uppercase text-center">
+            © JOPTION ACADEMY - SINCE 2026
+        </div>
+    </footer>
+</div>
+
+<script>
+    const APP_STATE = {
+        baseTx: 35086,
+        baseFt: 2836,
+        baseLabel: "2/26 04:59 封關",
+        currentFt: 0,
+        nextUpdate: 15,
+        isFetching: false,
+        proxies: [
+            "https://corsproxy.io/?url=",
+            "https://api.allorigins.win/get?url=",
+            "https://api.codetabs.com/v1/proxy?quest="
+        ],
+        proxyIdx: 0
+    };
+
+    function toggleSettings() {
+        const panel = document.getElementById('settings-panel');
+        panel.classList.toggle('hidden');
+        if (!panel.classList.contains('hidden')) {
+            document.getElementById('input-base-tx').value = APP_STATE.baseTx;
+            document.getElementById('input-base-ft').value = APP_STATE.baseFt;
+            const dateMatch = APP_STATE.baseLabel.match(/(\d+)\/(\d+)/);
+            if (dateMatch) {
+                const year = new Date().getFullYear();
+                const month = dateMatch[1].padStart(2, '0');
+                const day = dateMatch[2].padStart(2, '0');
+                document.getElementById('input-base-date').value = `${year}-${month}-${day}`;
+            }
+        }
+    }
+
+    async function saveSettings() {
+        if (!window.firebaseTools) return;
+        const { db, appId, doc, setDoc } = window.firebaseTools;
+        const newTx = parseFloat(document.getElementById('input-base-tx').value);
+        const newFt = parseFloat(document.getElementById('input-base-ft').value);
+        const dateVal = document.getElementById('input-base-date').value;
+
+        if (isNaN(newTx) || isNaN(newFt) || !dateVal) {
+            alert("請輸入有效的基準數值並選擇日期！");
+            return;
+        }
+
+        const dateParts = dateVal.split('-');
+        const formattedDate = `${parseInt(dateParts[1])}/${parseInt(dateParts[2])}`;
+        const newLabel = `${formattedDate} 04:59 封關`;
+
+        try {
+            const settingsDoc = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'simulation');
+            await setDoc(settingsDoc, {
+                baseTx: newTx,
+                baseFt: newFt,
+                baseLabel: newLabel,
+                updatedAt: Date.now()
+            });
+            toggleSettings();
+        } catch (e) { console.error("Save Error:", e); }
+    }
+
+    async function initStats() {
+        if (!window.firebaseTools) return;
+        const { db, auth, appId, increment, doc, setDoc, collection, onSnapshot, signInAnonymously, signInWithCustomToken, onAuthStateChanged } = window.firebaseTools;
+        
+        try {
+            // 自訂 Firebase 配置時，環境提供的 __initial_auth_token 通常會 mismatch
+            // 因此強制優先使用匿名登入
+            await signInAnonymously(auth).catch(e => {
+                console.error("Anonymous Auth Fail:", e);
+            });
+
+            onAuthStateChanged(auth, async (user) => {
+                if (!user) return;
+
+                // 1. 基準設定同步 (RULE 1 Path)
+                const settingsDoc = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'simulation');
+                onSnapshot(settingsDoc, (snap) => {
+                    if (snap.exists()) {
+                        const data = snap.data();
+                        APP_STATE.baseTx = data.baseTx;
+                        APP_STATE.baseFt = data.baseFt;
+                        APP_STATE.baseLabel = data.baseLabel;
+                        if (APP_STATE.currentFt > 0) calculateResults(APP_STATE.currentFt);
+                    }
+                }, (err) => console.error("Settings Sync Fail (Check Rules):", err));
+
+                // 2. 統計數據邏輯 (RULE 1 Path)
+                const now = new Date();
+                const dateKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                
+                const globalStatsDoc = doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'global');
+                const dailyStatsDoc = doc(db, 'artifacts', appId, 'public', 'data', 'dailyStats', dateKey);
+                const presenceDoc = doc(db, 'artifacts', appId, 'public', 'data', 'presence', user.uid);
+
+                // 更新數據 (加上簡單錯誤處理)
+                try {
+                    await setDoc(globalStatsDoc, { totalViews: increment(1) }, { merge: true });
+                    await setDoc(dailyStatsDoc, { count: increment(1) }, { merge: true });
+                } catch (e) { console.warn("Firestore write skipped:", e.message); }
+
+                onSnapshot(globalStatsDoc, (snap) => {
+                    if (snap.exists()) document.getElementById('total-views').innerText = snap.data().totalViews?.toLocaleString() || '0';
+                }, (err) => console.error("Global Stats Fail:", err));
+
+                onSnapshot(dailyStatsDoc, (snap) => {
+                    if (snap.exists()) document.getElementById('today-views').innerText = snap.data().count?.toLocaleString() || '0';
+                }, (err) => console.error("Daily Stats Fail:", err));
+
+                // 在線人數監控
+                const updateActive = () => setDoc(presenceDoc, { lastActive: Date.now() }, { merge: true });
+                updateActive();
+                setInterval(updateActive, 60000);
+
+                onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'presence'), (snap) => {
+                    const activeNow = Date.now();
+                    const activeCount = snap.docs.filter(d => (activeNow - (d.data().lastActive || 0)) < 300000).length;
+                    document.getElementById('online-users').innerText = activeCount || '1';
+                }, (err) => console.error("Presence Listen Fail:", err));
+            });
+        } catch (e) { console.error("InitStats Error:", e); }
+    }
+
+    async function fetchWithRetry(url, retries = 5) {
+        const proxyBase = APP_STATE.proxies[APP_STATE.proxyIdx % APP_STATE.proxies.length];
+        const cacheBuster = (url.includes('?') ? '&' : '?') + 't=' + Date.now();
+        const finalUrl = proxyBase + encodeURIComponent(url + cacheBuster);
+        try {
+            const res = await fetch(finalUrl);
+            if (!res.ok) throw new Error(`HTTP_${res.status}`);
+            let content = proxyBase.includes("allorigins") ? (await res.json()).contents : await res.text();
+            return content;
+        } catch (err) {
+            if (retries > 0) {
+                APP_STATE.proxyIdx++;
+                await new Promise(r => setTimeout(r, 600));
+                return fetchWithRetry(url, retries - 1);
+            }
+            throw err;
+        }
+    }
+
+    function calculateResults(foundFt) {
+        APP_STATE.currentFt = foundFt;
+        const currentRatio = APP_STATE.baseTx / APP_STATE.baseFt;
+        const txPrice = Math.round(foundFt * currentRatio);
+        const diff = txPrice - APP_STATE.baseTx;
+        const percent = ((foundFt / APP_STATE.baseFt) - 1) * 100;
+
+        document.getElementById('futai-val').innerText = foundFt.toLocaleString(undefined, {minimumFractionDigits: 2});
+        document.getElementById('tx-val').innerText = txPrice.toLocaleString();
+        document.getElementById('base-display-label').innerText = `較 ${APP_STATE.baseLabel} (${APP_STATE.baseTx})`;
+
+        const container = document.getElementById('diff-container');
+        const display = document.getElementById('diff-display');
+        const arrow = document.getElementById('diff-arrow');
+        const points = document.getElementById('diff-points');
+        const pctEl = document.getElementById('diff-percent');
+
+        container.classList.remove('hidden');
+        points.innerText = (diff > 0 ? "+" : "") + diff.toLocaleString();
+        pctEl.innerText = `(${percent.toFixed(2)}%)`;
+
+        if (diff > 0) { display.className = "flex items-center gap-2 font-mono font-black text-2xl up-trend"; arrow.innerHTML = "▲"; }
+        else if (diff < 0) { display.className = "flex items-center gap-2 font-mono font-black text-2xl down-trend"; arrow.innerHTML = "▼"; }
+        else { display.className = "flex items-center gap-2 font-mono font-black text-2xl text-slate-300"; arrow.innerHTML = ""; }
+    }
+
+    function parseCSV(text) {
+        const rows = [];
+        const lines = text.split(/\r?\n/);
+        for (let line of lines) {
+            if (!line.trim()) continue;
+            const cells = [];
+            let current = '', inQuotes = false;
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                if (char === '"') inQuotes = !inQuotes;
+                else if (char === ',' && !inQuotes) { cells.push(current.trim()); current = ''; }
+                else current += char;
+            }
+            cells.push(current.trim()); rows.push(cells);
+        }
+        return rows;
+    }
+
+    async function syncData() {
+        if (APP_STATE.isFetching) return;
+        const GS_URL = "https://docs.google.com/spreadsheets/d/1Ysw95KCFw-sHDUntrzsg7zCWPsiAyIIHJ1Yg69pKuKk/export?format=csv&gid=884663985";
+        const dot = document.getElementById('sync-dot');
+        const futaiEl = document.getElementById('futai-val');
+
+        APP_STATE.isFetching = true;
+        dot.className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
+
+        try {
+            const rawText = await fetchWithRetry(GS_URL);
+            const rows = parseCSV(rawText);
+            let foundPrice = null;
+            
+            if (rows.length >= 3 && rows[2] && rows[2][5]) {
+                const val = parseFloat(rows[2][5].replace(/[^\d.]/g, ''));
+                if (!isNaN(val) && val > 1500 && val < 4000) foundPrice = val;
+            }
+
+            if (!foundPrice) {
+                for (let r = 0; r < rows.length; r++) {
+                    for (let c = 0; c < rows[r].length; c++) {
+                        if (rows[r][c] && rows[r][c].includes("富台") && rows[r][c + 3]) {
+                            const val = parseFloat(rows[r][c + 3].replace(/[^\d.]/g, ''));
+                            if (!isNaN(val) && val > 1500 && val < 4000) { foundPrice = val; break; }
+                        }
+                    }
+                    if (foundPrice) break;
+                }
+            }
+
+            if (foundPrice) {
+                calculateResults(foundPrice);
+                document.getElementById('last-update-time').innerText = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+                dot.className = "w-2 h-2 rounded-full bg-emerald-500 shadow-sm";
+            } else { throw new Error("Value not found"); }
+        } catch (err) {
+            dot.className = "w-2 h-2 rounded-full bg-rose-500 shadow-sm";
+            if (futaiEl.innerText.includes('...')) futaiEl.innerText = "偵測失敗";
+        } finally {
+            APP_STATE.isFetching = false;
+            APP_STATE.nextUpdate = 15;
+            document.getElementById('countdown').innerText = APP_STATE.nextUpdate;
+        }
+    }
+
+    (function start() {
+        syncData();
+        setTimeout(initStats, 1500);
+        setInterval(() => {
+            if (!APP_STATE.isFetching) {
+                APP_STATE.nextUpdate--;
+                if (APP_STATE.nextUpdate <= 0) syncData();
+                else document.getElementById('countdown').innerText = APP_STATE.nextUpdate;
+            }
+        }, 1000);
+    })();
+</script>
+</body>
+</html>
