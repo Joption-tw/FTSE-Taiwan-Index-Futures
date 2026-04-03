@@ -10,28 +10,32 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, collection, onSnapshot, increment, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyBbmE0-4WIagYgJ-QIT-3vWXgOo3cu6XaE",
-            authDomain: "ftse-taiwan-index-futures.firebaseapp.com",
-            projectId: "ftse-taiwan-index-futures",
-            storageBucket: "ftse-taiwan-index-futures.firebasestorage.app",
-            messagingSenderId: "773347655083",
-            appId: "1:773347655083:web:d703fced4b5dd2bbd9e6ee",
-            measurementId: "G-QF3GTM38N7"
-        };
+        // 優先使用環境配置，若無則使用開發備用配置
+        const firebaseConfig = typeof __firebase_config !== 'undefined' 
+            ? JSON.parse(__firebase_config) 
+            : {
+                apiKey: "AIzaSyBbmE0-4WIagYgJ-QIT-3vWXgOo3cu6XaE",
+                authDomain: "ftse-taiwan-index-futures.firebaseapp.com",
+                projectId: "ftse-taiwan-index-futures",
+                storageBucket: "ftse-taiwan-index-futures.firebasestorage.app",
+                messagingSenderId: "773347655083",
+                appId: "1:773347655083:web:d703fced4b5dd2bbd9e6ee"
+            };
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'joption-academy-v1';
 
         try {
             const app = initializeApp(firebaseConfig);
             const auth = getAuth(app);
             const db = getFirestore(app);
-            const appId = "joption-academy-v1"; 
 
+            // 將工具掛載至 window 供後續腳本使用
             window.firebaseTools = { 
                 db, auth, appId, increment, doc, setDoc, getDoc, collection, onSnapshot, 
                 signInAnonymously, signInWithCustomToken, onAuthStateChanged 
             };
         } catch (e) {
-            console.error("Firebase Init Error:", e);
+            console.error("Firebase 初始化失敗:", e);
         }
     </script>
 
@@ -89,7 +93,6 @@
             font-size: 15vw;
         }
 
-        /* 隱藏滾動條但保持功能 */
         .no-scrollbar::-webkit-scrollbar { display: none; }
 
         @keyframes pulse-soft {
@@ -109,13 +112,12 @@
                 <h1 class="text-lg md:text-2xl font-black text-slate-800 tracking-tight leading-none">
                     富台指轉換器<span class="text-amber-500 font-normal">-</span>歐大選擇權教室
                 </h1>
-                <span class="text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded font-mono font-bold">v2.9.3</span>
+                <span class="text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded font-mono font-bold">v2.9.8</span>
             </div>
             <p class="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">FTSE Taiwan Index Converter</p>
         </div>
         
         <div class="flex items-center gap-2 md:gap-4">
-            <!-- 同步狀態 -->
             <div class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
                 <div id="sync-dot" class="w-2 h-2 rounded-full bg-slate-300"></div>
                 <span class="text-[11px] md:text-xs font-bold text-slate-500 font-mono">
@@ -129,7 +131,7 @@
         </div>
     </header>
 
-    <!-- 基準設定 (展開式) -->
+    <!-- 基準設定 (面板) -->
     <div id="settings-panel" class="hidden mx-2 md:mx-0 mb-4 overflow-hidden rounded-2xl bg-white border border-amber-100 shadow-xl shadow-amber-900/5">
         <div class="p-5 md:p-8">
             <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
@@ -159,7 +161,7 @@
     <main class="flex-grow px-2 md:px-0 space-y-4 relative">
         <div class="watermark">J-OPTION</div>
 
-        <!-- 主顯示區域 -->
+        <!-- 主顯示卡片 -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
             <!-- 目前富台 -->
             <div class="glass-card rounded-3xl p-6 md:p-8 flex flex-col justify-between min-h-[160px] md:min-h-[200px]">
@@ -189,23 +191,29 @@
                     ----
                 </div>
 
-                <div id="diff-container" class="hidden flex items-center gap-3 pt-2 border-t border-slate-50 mt-2">
-                    <div id="diff-display" class="flex items-center gap-1 font-black text-xl md:text-2xl font-mono">
-                        <span id="diff-arrow"></span>
-                        <span id="diff-points">0</span>
+                <!-- 比較區域 (依照圖片樣式修復) -->
+                <div id="diff-container" class="hidden flex flex-col md:flex-row md:items-center gap-2 pt-2 border-t border-slate-50 mt-2">
+                    <div class="flex items-center gap-3">
+                        <div id="diff-display" class="flex items-center gap-1 font-black text-xl md:text-2xl font-mono">
+                            <span id="diff-arrow"></span>
+                            <span id="diff-points">0</span>
+                        </div>
+                        <div id="diff-percent" class="text-xs md:text-sm font-bold text-slate-400">
+                            (0.00%)
+                        </div>
                     </div>
-                    <div id="diff-percent" class="text-xs md:text-sm font-bold text-slate-400">
-                        (0.00%)
-                    </div>
-                    <!-- 修改部分：Vs 4/3 改成 與 4/3 收盤價比較 -->
-                    <div class="ml-auto text-[10px] font-bold text-slate-300 uppercase italic">
-                        與 <span id="base-label-short" class="font-black">--/--</span> 收盤價比較
+                    
+                    <div class="md:ml-auto text-right text-[10px] font-bold text-slate-300 uppercase leading-tight">
+                        <div>與 <span id="base-label-short" class="text-slate-400 font-black">--/--</span> 收盤價比較</div>
+                        <div class="italic opacity-80 mt-0.5">
+                            基準: TX <span id="base-tx-display" class="font-mono">--</span> / FT <span id="base-ft-display" class="font-mono">--</span>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- 快速導航 -->
+        <!-- 導航連結 -->
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 relative z-10">
             <a href="http://learn.joption.com.tw/" target="_blank" class="flex items-center gap-4 p-4 bg-emerald-500 text-white rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-emerald-500/10">
                 <div class="p-2 bg-white/20 rounded-lg">
@@ -239,7 +247,7 @@
         </div>
     </main>
 
-    <!-- 底部數據統計 -->
+    <!-- 頁尾 -->
     <footer class="mt-8 mb-6 px-4 py-6 md:py-8 border-t border-slate-200/60">
         <div class="flex flex-wrap justify-center gap-4 md:gap-8 mb-6">
             <div class="flex items-center gap-2">
@@ -297,7 +305,9 @@
 
     async function saveSettings() {
         if (!window.firebaseTools) return;
-        const { db, appId, doc, setDoc } = window.firebaseTools;
+        const { db, appId, doc, setDoc, auth } = window.firebaseTools;
+        if (!auth.currentUser) return;
+
         const newTx = parseFloat(document.getElementById('input-base-tx').value);
         const newFt = parseFloat(document.getElementById('input-base-ft').value);
         const dateVal = document.getElementById('input-base-date').value;
@@ -309,30 +319,38 @@
         const newLabel = `${formattedDate} 04:59 封關`;
 
         try {
-            const settingsDoc = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'simulation');
-            await setDoc(settingsDoc, {
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'simulation'), {
                 baseTx: newTx,
                 baseFt: newFt,
                 baseLabel: newLabel,
                 updatedAt: Date.now()
             });
             toggleSettings();
-        } catch (e) { console.error("Save Error:", e); }
+        } catch (e) { console.error("儲存失敗:", e); }
     }
 
     async function initStats() {
         if (!window.firebaseTools) return;
-        const { db, auth, appId, increment, doc, setDoc, collection, onSnapshot, signInAnonymously, onAuthStateChanged } = window.firebaseTools;
+        const { db, auth, appId, increment, doc, setDoc, collection, onSnapshot, signInAnonymously, signInWithCustomToken, onAuthStateChanged } = window.firebaseTools;
         
+        // 強制驗證流程
+        const startAuth = async () => {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+        };
+
         try {
-            await signInAnonymously(auth);
+            await startAuth();
 
             onAuthStateChanged(auth, async (user) => {
                 if (!user) return;
 
-                // 同步設定
-                const settingsDoc = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'simulation');
-                onSnapshot(settingsDoc, (snap) => {
+                // 只有在登入後才開啟監聽
+                const settingsRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'simulation');
+                onSnapshot(settingsRef, (snap) => {
                     if (snap.exists()) {
                         const data = snap.data();
                         APP_STATE.baseTx = data.baseTx;
@@ -340,30 +358,29 @@
                         APP_STATE.baseLabel = data.baseLabel;
                         if (APP_STATE.currentFt > 0) calculateResults(APP_STATE.currentFt);
                     }
-                }, (err) => {});
+                }, (err) => console.error("監聽設定失敗 (路徑或權限):", err));
 
-                // 統計
                 const now = new Date();
                 const dateKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
                 
-                const globalStatsDoc = doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'global');
-                const dailyStatsDoc = doc(db, 'artifacts', appId, 'public', 'data', 'dailyStats', dateKey);
-                const presenceDoc = doc(db, 'artifacts', appId, 'public', 'data', 'presence', user.uid);
+                const globalStatsRef = doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'global');
+                const dailyStatsRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyStats', dateKey);
+                const presenceRef = doc(db, 'artifacts', appId, 'public', 'data', 'presence', user.uid);
 
                 try {
-                    await setDoc(globalStatsDoc, { totalViews: increment(1) }, { merge: true });
-                    await setDoc(dailyStatsDoc, { count: increment(1) }, { merge: true });
+                    await setDoc(globalStatsRef, { totalViews: increment(1) }, { merge: true });
+                    await setDoc(dailyStatsRef, { count: increment(1) }, { merge: true });
                 } catch (e) {}
 
-                onSnapshot(globalStatsDoc, (snap) => {
+                onSnapshot(globalStatsRef, (snap) => {
                     if (snap.exists()) document.getElementById('total-views').innerText = snap.data().totalViews?.toLocaleString() || '0';
-                });
+                }, (err) => {});
 
-                onSnapshot(dailyStatsDoc, (snap) => {
+                onSnapshot(dailyStatsRef, (snap) => {
                     if (snap.exists()) document.getElementById('today-views').innerText = snap.data().count?.toLocaleString() || '0';
-                });
+                }, (err) => {});
 
-                const updateActive = () => setDoc(presenceDoc, { lastActive: Date.now() }, { merge: true });
+                const updateActive = () => setDoc(presenceRef, { lastActive: Date.now() }, { merge: true });
                 updateActive();
                 setInterval(updateActive, 60000);
 
@@ -371,9 +388,11 @@
                     const activeNow = Date.now();
                     const activeCount = snap.docs.filter(d => (activeNow - (d.data().lastActive || 0)) < 300000).length;
                     document.getElementById('online-users').innerText = activeCount || '1';
-                });
+                }, (err) => {});
             });
-        } catch (e) {}
+        } catch (e) {
+            console.error("驗證初始化失敗:", e);
+        }
     }
 
     async function fetchWithRetry(url, retries = 5) {
@@ -405,8 +424,11 @@
         document.getElementById('futai-val').innerHTML = foundFt.toLocaleString(undefined, {minimumFractionDigits: 2});
         document.getElementById('tx-val').innerText = txPrice.toLocaleString();
         
+        // 更新 UI 上的基準值顯示
         const shortLabel = APP_STATE.baseLabel.split(' ')[0];
         document.getElementById('base-label-short').innerText = shortLabel;
+        document.getElementById('base-tx-display').innerText = Math.round(APP_STATE.baseTx).toLocaleString();
+        document.getElementById('base-ft-display').innerText = APP_STATE.baseFt.toLocaleString();
 
         const container = document.getElementById('diff-container');
         const display = document.getElementById('diff-display');
