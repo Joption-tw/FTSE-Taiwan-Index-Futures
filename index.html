@@ -138,7 +138,7 @@
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div class="space-y-1.5">
                     <label class="text-xs font-bold text-slate-400 uppercase">基準台指期 (TX)</label>
-                    <input type="number" id="input-base-tx" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-amber-500 outline-none font-mono font-bold" placeholder="35086">
+                    <input type="number" id="input-base-tx" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-amber-500 outline-none font-mono font-bold" placeholder="32877">
                 </div>
                 <div class="space-y-1.5">
                     <label class="text-xs font-bold text-slate-400 uppercase">基準富台指 (FT)</label>
@@ -197,7 +197,7 @@
                     <div id="diff-percent" class="text-xs md:text-sm font-bold text-slate-400">
                         (0.00%)
                     </div>
-                    <!-- 修改部分：Vs 2/26 改成 與 2/26 收盤價比較 -->
+                    <!-- 修改部分：Vs 4/3 改成 與 4/3 收盤價比較 -->
                     <div class="ml-auto text-[10px] font-bold text-slate-300 uppercase italic">
                         與 <span id="base-label-short" class="font-black">--/--</span> 收盤價比較
                     </div>
@@ -267,9 +267,9 @@
 
 <script>
     const APP_STATE = {
-        baseTx: 35086,
-        baseFt: 2836,
-        baseLabel: "2/26 04:59 封關",
+        baseTx: 32877,
+        baseFt: 2671,
+        baseLabel: "4/3 04:59 封關",
         currentFt: 0,
         nextUpdate: 15,
         isFetching: false,
