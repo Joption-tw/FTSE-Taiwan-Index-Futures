@@ -153,7 +153,7 @@
             </div>
             <div class="mt-6 flex gap-3">
                 <button onclick="toggleSettings()" class="flex-1 py-3 text-slate-400 font-bold hover:bg-slate-50 rounded-xl transition-colors">取消</button>
-                <button onclick="saveSettings()" class="flex-[2] py-3 bg-slate-900 text-white font-bold rounded-xl shadow-lg shadow-slate-200 active:scale-[0.98] transition-all">儲存基準</button>
+                <button id="save-btn" onclick="saveSettings()" class="flex-[2] py-3 bg-slate-900 text-white font-bold rounded-xl shadow-lg shadow-slate-200 active:scale-[0.98] transition-all">儲存基準</button>
             </div>
         </div>
     </div>
@@ -304,15 +304,25 @@
     }
 
     async function saveSettings() {
-        if (!window.firebaseTools) return;
+        const btn = document.getElementById('save-btn');
+        const flash = (text, ms = 2000) => {
+            btn.innerText = text;
+            setTimeout(() => { btn.innerText = '儲存基準'; btn.disabled = false; }, ms);
+        };
+        if (!window.firebaseTools) return flash('連線尚未就緒，請稍候再試');
         const { db, appId, doc, setDoc, auth } = window.firebaseTools;
-        if (!auth.currentUser) return;
 
         const newTx = parseFloat(document.getElementById('input-base-tx').value);
         const newFt = parseFloat(document.getElementById('input-base-ft').value);
         const dateVal = document.getElementById('input-base-date').value;
 
-        if (isNaN(newTx) || isNaN(newFt) || !dateVal) return;
+        if (isNaN(newTx) || isNaN(newFt) || !dateVal) return flash('請填寫完整數值與日期');
+
+        btn.disabled = true;
+        btn.innerText = '儲存中…';
+        // 匿名登入可能還沒完成，最多等 5 秒
+        for (let i = 0; i < 50 && !auth.currentUser; i++) await new Promise(r => setTimeout(r, 100));
+        if (!auth.currentUser) return flash('連線尚未就緒，請稍候再試');
 
         const dateParts = dateVal.split('-');
         const formattedDate = `${parseInt(dateParts[1])}/${parseInt(dateParts[2])}`;
@@ -325,8 +335,12 @@
                 baseLabel: newLabel,
                 updatedAt: Date.now()
             });
-            toggleSettings();
-        } catch (e) { console.error("儲存失敗:", e); }
+            btn.innerText = '✓ 已儲存，所有人同步更新';
+            setTimeout(() => { btn.innerText = '儲存基準'; btn.disabled = false; toggleSettings(); }, 1200);
+        } catch (e) {
+            console.error("儲存失敗:", e);
+            flash('儲存失敗，請再試一次');
+        }
     }
 
     async function initStats() {
