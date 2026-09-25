@@ -396,6 +396,15 @@
     }
 
     async function fetchWithRetry(url, retries = 5) {
+        // Google Sheets CSV 匯出支援 CORS，先直接抓取，失敗才走代理
+        try {
+            const res = await fetch(url + (url.includes('?') ? '&' : '?') + 't=' + Date.now());
+            if (res.ok) return await res.text();
+        } catch (e) {}
+        return fetchViaProxy(url, retries);
+    }
+
+    async function fetchViaProxy(url, retries) {
         const proxyBase = APP_STATE.proxies[APP_STATE.proxyIdx % APP_STATE.proxies.length];
         const cacheBuster = (url.includes('?') ? '&' : '?') + 't=' + Date.now();
         const finalUrl = proxyBase + encodeURIComponent(url + cacheBuster);
@@ -408,7 +417,7 @@
             if (retries > 0) {
                 APP_STATE.proxyIdx++;
                 await new Promise(r => setTimeout(r, 600));
-                return fetchWithRetry(url, retries - 1);
+                return fetchViaProxy(url, retries - 1);
             }
             throw err;
         }
@@ -486,7 +495,7 @@
             if (!foundPrice) {
                 for (let r = 0; r < rows.length; r++) {
                     for (let c = 0; c < rows[r].length; c++) {
-                        if (rows[r][c] && rows[r][c].includes("富台") && rows[r][c + 3]) {
+                        if (rows[r][c] && /富(時)?台/.test(rows[r][c]) && rows[r][c + 3]) {
                             const val = parseFloat(rows[r][c + 3].replace(/[^\d.]/g, ''));
                             if (!isNaN(val) && val > 1000) { foundPrice = val; break; }
                         }
