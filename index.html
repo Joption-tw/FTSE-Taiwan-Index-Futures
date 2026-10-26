@@ -279,6 +279,7 @@
         baseFt: 4229.25,
         baseLabel: "9/25 04:59 封關",
         currentFt: 0,
+        refreshSec: 15,
         nextUpdate: 15,
         isFetching: false,
         proxies: [
@@ -486,9 +487,40 @@
         return rows;
     }
 
+    // 主要來源：TradingView 公開報價（SGX 富台指連續月，延遲約 10 分鐘）
+    async function fetchFromTradingView() {
+        const res = await fetch('https://scanner.tradingview.com/futures/scan', {
+            method: 'POST',
+            body: JSON.stringify({ symbols: { tickers: ['SGX:TWN1!'] }, columns: ['close'] })
+        });
+        if (!res.ok) throw new Error('TradingView ' + res.status);
+        const val = (await res.json())?.data?.[0]?.d?.[0];
+        if (typeof val !== 'number' || val < 1000) throw new Error('TradingView 無報價');
+        return val;
+    }
+
+    // 備援來源：Google Sheet
+    async function fetchFromSheet() {
+        const GS_URL = "https://docs.google.com/spreadsheets/d/1Ysw95KCFw-sHDUntrzsg7zCWPsiAyIIHJ1Yg69pKuKk/export?format=csv&gid=884663985";
+        const rows = parseCSV(await fetchWithRetry(GS_URL));
+
+        if (rows.length >= 3 && rows[2] && rows[2][5]) {
+            const val = parseFloat(rows[2][5].replace(/[^\d.]/g, ''));
+            if (!isNaN(val) && val > 1000) return val;
+        }
+        for (let r = 0; r < rows.length; r++) {
+            for (let c = 0; c < rows[r].length; c++) {
+                if (rows[r][c] && /富(時)?台/.test(rows[r][c]) && rows[r][c + 3]) {
+                    const val = parseFloat(rows[r][c + 3].replace(/[^\d.]/g, ''));
+                    if (!isNaN(val) && val > 1000) return val;
+                }
+            }
+        }
+        return null;
+    }
+
     async function syncData() {
         if (APP_STATE.isFetching) return;
-        const GS_URL = "https://docs.google.com/spreadsheets/d/1Ysw95KCFw-sHDUntrzsg7zCWPsiAyIIHJ1Yg69pKuKk/export?format=csv&gid=884663985";
         const dot = document.getElementById('sync-dot');
         const statusInd = document.getElementById('status-indicator');
 
@@ -497,25 +529,12 @@
         statusInd.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
 
         try {
-            const rawText = await fetchWithRetry(GS_URL);
-            const rows = parseCSV(rawText);
             let foundPrice = null;
-            
-            if (rows.length >= 3 && rows[2] && rows[2][5]) {
-                const val = parseFloat(rows[2][5].replace(/[^\d.]/g, ''));
-                if (!isNaN(val) && val > 1000) foundPrice = val;
-            }
-
-            if (!foundPrice) {
-                for (let r = 0; r < rows.length; r++) {
-                    for (let c = 0; c < rows[r].length; c++) {
-                        if (rows[r][c] && /富(時)?台/.test(rows[r][c]) && rows[r][c + 3]) {
-                            const val = parseFloat(rows[r][c + 3].replace(/[^\d.]/g, ''));
-                            if (!isNaN(val) && val > 1000) { foundPrice = val; break; }
-                        }
-                    }
-                    if (foundPrice) break;
-                }
+            try {
+                foundPrice = await fetchFromTradingView();
+            } catch (e) {
+                console.warn('TradingView 失敗，改用 Google Sheet:', e);
+                foundPrice = await fetchFromSheet();
             }
 
             if (foundPrice) {
@@ -529,7 +548,7 @@
             statusInd.className = "w-2 h-2 rounded-full bg-rose-500";
         } finally {
             APP_STATE.isFetching = false;
-            APP_STATE.nextUpdate = 15;
+            APP_STATE.nextUpdate = APP_STATE.refreshSec;
             document.getElementById('countdown').innerText = APP_STATE.nextUpdate;
         }
     }
