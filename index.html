@@ -121,7 +121,7 @@
             <div class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
                 <div id="sync-dot" class="w-2 h-2 rounded-full bg-slate-300"></div>
                 <span class="text-[11px] md:text-xs font-bold text-slate-500 font-mono">
-                    REFRESH: <span id="countdown" class="text-amber-600">15</span>S
+                    REFRESH: <span id="countdown" class="text-amber-600">5</span>S
                 </span>
             </div>
             
@@ -279,8 +279,8 @@
         baseFt: 4229.25,
         baseLabel: "9/25 04:59 封關",
         currentFt: 0,
-        refreshSec: 15,
-        nextUpdate: 15,
+        refreshSec: 5,
+        nextUpdate: 5,
         isFetching: false,
         proxies: [
             "https://corsproxy.io/?url=",
@@ -487,19 +487,7 @@
         return rows;
     }
 
-    // 主要來源：TradingView 公開報價（SGX 富台指連續月，延遲約 10 分鐘）
-    async function fetchFromTradingView() {
-        const res = await fetch('https://scanner.tradingview.com/futures/scan', {
-            method: 'POST',
-            body: JSON.stringify({ symbols: { tickers: ['SGX:TWN1!'] }, columns: ['close'] })
-        });
-        if (!res.ok) throw new Error('TradingView ' + res.status);
-        const val = (await res.json())?.data?.[0]?.d?.[0];
-        if (typeof val !== 'number' || val < 1000) throw new Error('TradingView 無報價');
-        return val;
-    }
-
-    // 備援來源：Google Sheet
+    // 來源：Google Sheet（由報價軟體即時寫入，延遲僅數秒）
     async function fetchFromSheet() {
         const GS_URL = "https://docs.google.com/spreadsheets/d/1Ysw95KCFw-sHDUntrzsg7zCWPsiAyIIHJ1Yg69pKuKk/export?format=csv&gid=884663985";
         const rows = parseCSV(await fetchWithRetry(GS_URL));
@@ -529,13 +517,7 @@
         statusInd.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
 
         try {
-            let foundPrice = null;
-            try {
-                foundPrice = await fetchFromTradingView();
-            } catch (e) {
-                console.warn('TradingView 失敗，改用 Google Sheet:', e);
-                foundPrice = await fetchFromSheet();
-            }
+            const foundPrice = await fetchFromSheet();
 
             if (foundPrice) {
                 calculateResults(foundPrice);
