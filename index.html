@@ -112,7 +112,7 @@
                 <h1 class="text-lg md:text-2xl font-black text-slate-800 tracking-tight leading-none">
                     富台指轉換器<span class="text-amber-500 font-normal">-</span>歐大選擇權教室
                 </h1>
-                <span class="text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded font-mono font-bold">v2.9.8</span>
+                <span class="text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded font-mono font-bold">v2.9.9</span>
             </div>
             <p class="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">FTSE Taiwan Index Converter</p>
         </div>
@@ -487,23 +487,48 @@
         return rows;
     }
 
-    // 來源：Google Sheet（由報價軟體即時寫入，延遲僅數秒）
+    // 主要來源：Google Sheet（由報價軟體即時寫入，延遲僅數秒）
+    // 找「富時台」那一列：最新價在名稱後第 3 格，下市日期在名稱後第 8 格
     async function fetchFromSheet() {
         const GS_URL = "https://docs.google.com/spreadsheets/d/1Ysw95KCFw-sHDUntrzsg7zCWPsiAyIIHJ1Yg69pKuKk/export?format=csv&gid=884663985";
         const rows = parseCSV(await fetchWithRetry(GS_URL));
+        const today = Number(new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' }).replace(/-/g, ''));
 
-        if (rows.length >= 3 && rows[2] && rows[2][5]) {
-            const val = parseFloat(rows[2][5].replace(/[^\d.]/g, ''));
-            if (!isNaN(val) && val > 1000) return val;
-        }
         for (let r = 0; r < rows.length; r++) {
             for (let c = 0; c < rows[r].length; c++) {
                 if (rows[r][c] && /富(時)?台/.test(rows[r][c]) && rows[r][c + 3]) {
                     const val = parseFloat(rows[r][c + 3].replace(/[^\d.]/g, ''));
-                    if (!isNaN(val) && val > 1000) return val;
+                    const expire = Number(String(rows[r][c + 8] || '').replace(/\D/g, ''));
+                    // 合約已過下市日 = 報價軟體還掛著舊合約，報價是停住的
+                    if (expire > 20000000 && expire < today) return { val, expired: true };
+                    if (!isNaN(val) && val > 1000) return { val, expired: false };
                 }
             }
         }
+        return null;
+    }
+
+    // 備用來源：TradingView 公開報價（SGX 富台指連續月，延遲約 10 分鐘）
+    async function fetchFromTradingView() {
+        const res = await fetch('https://scanner.tradingview.com/futures/scan', {
+            method: 'POST',
+            body: JSON.stringify({ symbols: { tickers: ['SGX:TWN1!'] }, columns: ['close'] })
+        });
+        if (!res.ok) throw new Error('TradingView ' + res.status);
+        const val = (await res.json())?.data?.[0]?.d?.[0];
+        if (typeof val !== 'number' || val < 1000) throw new Error('TradingView 無報價');
+        return val;
+    }
+
+    // 兩邊一起抓：試算表正常就用試算表（即時）；
+    // 試算表合約過期、或跟 TradingView 差超過 3%（報價軟體停住），改用 TradingView
+    async function fetchPrice() {
+        const [gs, tv] = await Promise.allSettled([fetchFromSheet(), fetchFromTradingView()]);
+        const sheet = gs.status === 'fulfilled' ? gs.value : null;
+        const tvVal = tv.status === 'fulfilled' ? tv.value : null;
+        const sheetOk = sheet && !sheet.expired && sheet.val > 1000;
+        if (sheetOk && (!tvVal || Math.abs(sheet.val / tvVal - 1) < 0.03)) return { price: sheet.val, delayed: false };
+        if (tvVal) return { price: tvVal, delayed: true };
         return null;
     }
 
@@ -517,11 +542,12 @@
         statusInd.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
 
         try {
-            const foundPrice = await fetchFromSheet();
+            const found = await fetchPrice();
 
-            if (foundPrice) {
-                calculateResults(foundPrice);
-                document.getElementById('last-update-time').innerText = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+            if (found) {
+                calculateResults(found.price);
+                document.getElementById('last-update-time').innerText = new Date().toLocaleTimeString('zh-TW', { hour12: false })
+                    + (found.delayed ? '（備用報價，延遲約 10 分鐘）' : '');
                 dot.className = "w-2 h-2 rounded-full bg-emerald-500 shadow-sm";
                 statusInd.className = "w-2 h-2 rounded-full bg-emerald-500";
             } else { throw new Error(); }
